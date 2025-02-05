@@ -5,7 +5,8 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)  # Permite que o frontend acesse o backend sem bloqueios de CORS
 
-# 🔥 Função para FORÇAR a recriação do banco de dados
+
+# 🔥 Força a criação do banco de dados e TABELA
 def force_reset_db():
     try:
         conn = sqlite3.connect("data.db")
@@ -44,8 +45,29 @@ def force_reset_db():
         conn.commit()
         conn.close()
         print("✅ Banco de dados RECRIADO com sucesso!")
+
+        # 🚀 Testa se a tabela realmente existe depois de criar!
+        test_db_creation()
+
     except Exception as e:
         print("❌ ERRO ao recriar banco de dados:", e)
+
+
+# 🚀 **Testa se a tabela 'observations' realmente existe**
+def test_db_creation():
+    try:
+        conn = sqlite3.connect("data.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='observations'")
+        table_exists = cursor.fetchone()
+        conn.close()
+
+        if table_exists:
+            print("✅ Verificação: Tabela 'observations' FOI criada corretamente! 🎉")
+        else:
+            print("❌ ERRO: A tabela 'observations' NÃO foi criada! 😡")
+    except Exception as e:
+        print("❌ ERRO ao verificar a tabela:", e)
 
 
 # ✅ **Salvar medições**

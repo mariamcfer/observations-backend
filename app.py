@@ -1,19 +1,17 @@
 from flask import Flask, request, Response, jsonify
+import json
 import sqlite3
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)  # Permite CORS
+CORS(app)
 
-# 🔥 Função para GARANTIR que o banco de dados é criado corretamente
+
+# ✅ Função para criar/recriar banco de dados
 def init_db():
     try:
         conn = sqlite3.connect("data.db")
         cursor = conn.cursor()
-
-        # Apagar a tabela antiga e criar uma nova
-        print("🚨 Apagando tabela antiga e criando uma nova...")
-        cursor.execute("DROP TABLE IF EXISTS observations")
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS observations (
@@ -38,77 +36,102 @@ def init_db():
                 shopfloorManipulated INTEGER,
                 transitsTime INTEGER,
                 devicesFailuresTime INTEGER,
-                status TEXT,
-                flagged_observation TEXT
+                status TEXT
             )
         """)
         conn.commit()
         conn.close()
-        print("✅ Banco de dados RECRIADO com sucesso!")
+        print("✅ Banco de dados criado/verificado com sucesso!")
     except Exception as e:
-        print("❌ ERRO ao criar banco de dados:", e)
+        print(f"❌ ERRO ao criar banco de dados: {e}")
 
 
-# ✅ **Verificar se a tabela existe**
+# ✅ Testar se a tabela existe
 @app.route("/check_db", methods=["GET"])
 def check_db():
     try:
         conn = sqlite3.connect("data.db")
         cursor = conn.cursor()
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='observations';")
-        table = cursor.fetchone()
+        table_exists = cursor.fetchone()
         conn.close()
 
-        if table:
-            return jsonify({"status": "✅ Tabela 'observations' existe!"})
+        if table_exists:
+            return jsonify({"status": "✅ Banco de dados está funcionando!"})
         else:
             return jsonify({"status": "❌ ERRO: Tabela 'observations' NÃO existe!"})
     except Exception as e:
-        return jsonify({"status": f"Erro ao verificar DB: {str(e)}"})
+        return jsonify({"error": "Erro ao acessar banco de dados", "details": str(e)}), 500
 
 
-# ✅ **Salvar medições**
+# ✅ Salvar uma medição
 @app.route("/save", methods=["POST"])
 def save_data():
-    data = request.json  
-    if not data:
-        return jsonify({"error": "Nenhum dado recebido"}), 400
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"error": "Nenhum dado recebido"}), 400
 
-    print("📥 Dados recebidos:", data)
+        conn = sqlite3.connect("data.db")
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO observations (
+                storeName, product, productType, section, spacePass, ladderRequired,
+                size25, notLocatedUnits, observations, startTime, endTime,
+                pickingTime, pickingFound, pickingNotFound, reoperatingTime,
+                reoperatingManipulated, shopfloorTime, shopfloorManipulated,
+                transitsTime, devicesFailuresTime, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            data.get("storeName", "N/A"), data.get("product", "N/A"), data.get("productType", "N/A"),
+            data.get("section", "N/A"), data.get("spacePass", "N/A"), data.get("ladderRequired", "N/A"),
+            data.get("size25", "N/A"), data.get("notLocatedUnits", "N/A"), data.get("observations", "N/A"),
+            data.get("startTime", "N/A"), data.get("endTime", "N/A"), data.get("pickingTime", 0),
+            data.get("pickingFound", 0), data.get("pickingNotFound", 0), data.get("reoperatingTime", 0),
+            data.get("reoperatingManipulated", 0), data.get("shopfloorTime", 0), data.get("shopfloorManipulated", 0),
+            data.get("transitsTime", 0), data.get("devicesFailuresTime", 0), "synced"
+        ))
+        conn.commit()
+        new_id = cursor.lastrowid
+        conn.close()
 
-    conn = sqlite3.connect("data.db")
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO observations (
-            storeName, product, productType, section, spacePass, ladderRequired, 
-            size25, notLocatedUnits, observations, startTime, endTime, 
-            pickingTime, pickingFound, pickingNotFound, reoperatingTime, 
-            reoperatingManipulated, shopfloorTime, shopfloorManipulated, 
-            transitsTime, devicesFailuresTime, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        data.get("storeName", "N/A"), data.get("product", "N/A"), data.get("productType", "N/A"),
-        data.get("section", "N/A"), data.get("spacePass", "N/A"), data.get("ladderRequired", "N/A"),
-        data.get("size25", "N/A"), data.get("notLocatedUnits", "N/A"), data.get("observations", "N/A"),
-        data.get("startTime", "N/A"), data.get("endTime", "N/A"), data.get("pickingTime", 0),
-        data.get("pickingFound", 0), data.get("pickingNotFound", 0), data.get("reoperatingTime", 0),
-        data.get("reoperatingManipulated", 0), data.get("shopfloorTime", 0), data.get("shopfloorManipulated", 0),
-        data.get("transitsTime", 0), data.get("devicesFailuresTime", 0), "synced"
-    ))
-    conn.commit()
-    new_id = cursor.lastrowid
-    conn.close()
-
-    return jsonify({"message": "✅ Data saved successfully!", "id": new_id})
+        return jsonify({"message": "✅ Data saved successfully!", "id": new_id})
+    except Exception as e:
+        return jsonify({"error": "Erro ao salvar no banco de dados", "details": str(e)}), 500
 
 
-# ✅ **Página inicial**
+# ✅ Obter todas as medições
+@app.route("/measurements", methods=["GET"])
+def get_data():
+    try:
+        conn = sqlite3.connect("data.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM observations")
+        rows = cursor.fetchall()
+        conn.close()
+
+        measurements = [
+            {
+                "id": row[0], "storeName": row[1], "product": row[2], "productType": row[3], "section": row[4],
+                "spacePass": row[5], "ladderRequired": row[6], "size25": row[7], "notLocatedUnits": row[8],
+                "observations": row[9], "startTime": row[10], "endTime": row[11], "pickingTime": row[12],
+                "pickingFound": row[13], "pickingNotFound": row[14], "reoperatingTime": row[15],
+                "reoperatingManipulated": row[16], "shopfloorTime": row[17], "shopfloorManipulated": row[18],
+                "transitsTime": row[19], "devicesFailuresTime": row[20], "status": row[21]
+            } for row in rows
+        ]
+        return jsonify(measurements)
+    except Exception as e:
+        return jsonify({"error": "Erro ao acessar banco de dados", "details": str(e)}), 500
+
+
+# ✅ Página inicial
 @app.route("/")
 def index():
-    return "🚀 Flask is running! Test /measurements for data."
+    return "🚀 Flask API is running! Try /check_db to verify "data.db" status."
 
 
-# ✅ **Rodando o servidor**
+# ✅ Iniciar servidor e criar DB
 if __name__ == "__main__":
-    init_db()  # 🔥 GARANTE QUE O BANCO É CRIADO NO INÍCIO
+    init_db()
     app.run(debug=True, host="0.0.0.0", port=5000)

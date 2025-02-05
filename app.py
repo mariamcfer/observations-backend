@@ -128,11 +128,17 @@ def get_units_count():
     conn.close()
     return jsonify({"store": store, "product": product, "productType": productType, "section": section, "total_units": total_units})
 
-import os
+@app.route("/")
+def home():
+    return jsonify({"message": "API Flask rodando corretamente!"})
+
+import os  # Importando os para pegar variáveis de ambiente
 
 if __name__ == "__main__":
     init_db()
-    port = int(os.environ.get("PORT", 10000))  # ✅ Render usa uma porta dinâmica
+    port = int(os.environ.get("PORT", 5000))  # Render define a porta na variável PORT
     app.run(debug=True, host="0.0.0.0", port=port)
+
+
 
 

@@ -128,7 +128,7 @@ def get_data():
 # ✅ Página inicial
 @app.route("/")
 def index():
-    return "🚀 Flask API is running! Try /check_db to verify "data.db" status."
+    return "🚀 Flask API is running! Try /check_db to verify 'data.db' status."
 
 
 # ✅ Iniciar servidor e criar DB

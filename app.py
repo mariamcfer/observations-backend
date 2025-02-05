@@ -10,33 +10,52 @@ CORS(app)  # Permite que o front end acesse o back end sem bloqueios de CORS
 def init_db():
     conn = sqlite3.connect("data.db")
     cursor = conn.cursor()
+
+    # Criar a tabela caso não exista
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS observations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             storeName TEXT,
-            type TEXT,
+            product TEXT,
+            productType TEXT,
             section TEXT,
             spacePass TEXT,
             ladderRequired TEXT,
-            size25 TEXT,              
-            notLocatedUnits TEXT,     
+            size25 TEXT,
+            notLocatedUnits TEXT,
             observations TEXT,
             startTime TEXT,
             endTime TEXT,
             pickingTime INTEGER,
             pickingFound INTEGER,
             pickingNotFound INTEGER,
-            reoperatingTime INTEGER,            
-            reoperatingManipulated INTEGER,     
+            reoperatingTime INTEGER,
+            reoperatingManipulated INTEGER,
             shopfloorTime INTEGER,
             shopfloorManipulated INTEGER,
-            transitsTime INTEGER,               
-            devicesFailuresTime INTEGER,        
-            status TEXT
+            transitsTime INTEGER,
+            devicesFailuresTime INTEGER,
+            status TEXT,
+            flagged_observation TEXT
         )
     """)
+
+    # 🔥 Adicionar novas colunas se elas não existirem
+    try:
+        cursor.execute("ALTER TABLE observations ADD COLUMN product TEXT")
+    except sqlite3.OperationalError:
+        print("⚠️ Coluna 'product' já existe, pulando...")
+
+    try:
+        cursor.execute("ALTER TABLE observations ADD COLUMN productType TEXT")
+    except sqlite3.OperationalError:
+        print("⚠️ Coluna 'productType' já existe, pulando...")
+
     conn.commit()
     conn.close()
+    print("✅ Banco de dados atualizado com sucesso!")
+
+
 
 # Endpoint para salvar medições
 @app.route("/save", methods=["POST"])
@@ -48,7 +67,8 @@ def save_data():
     print("Dados recebidos:", data)
 
     storeName = data.get("storeName", "N/A")
-    type_val = data.get("type", "N/A")
+    product = data.get("product", "N/A")  # Novo campo
+    productType = data.get("productType", "N/A")  # Novo campo
     section = data.get("section", "N/A")
     spacePass = data.get("spacePass", "N/A")
     ladderRequired = data.get("ladderRequired", "N/A")
@@ -73,14 +93,13 @@ def save_data():
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO observations (
-            storeName, type, section, spacePass, ladderRequired, size25, notLocatedUnits, observations, startTime, endTime, 
-            pickingTime, pickingFound, pickingNotFound, 
-            reoperatingTime, reoperatingManipulated, 
-            shopfloorTime, shopfloorManipulated, 
+            storeName, product, productType, section, spacePass, ladderRequired, size25, notLocatedUnits, 
+            observations, startTime, endTime, pickingTime, pickingFound, pickingNotFound, 
+            reoperatingTime, reoperatingManipulated, shopfloorTime, shopfloorManipulated, 
             transitsTime, devicesFailuresTime, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
-        storeName, type_val, section, spacePass, ladderRequired, size25, notLocatedUnits,
+        storeName, product, productType, section, spacePass, ladderRequired, size25, notLocatedUnits,
         observations, startTime, endTime, pickingTime, pickingFound, pickingNotFound,
         reoperatingTime, reoperatingManipulated, shopfloorTime, shopfloorManipulated,
         transitsTime, devicesFailuresTime, status
@@ -90,6 +109,7 @@ def save_data():
     conn.close()
 
     return jsonify({"message": "Data saved successfully!", "id": new_id})
+
 
 # Endpoint para recuperar medições
 @app.route("/measurements", methods=["GET"])
@@ -124,15 +144,17 @@ def report_error():
     measurement_id = data.get("id")
     error_details = data.get("error", "Erro reportado sem detalhes")
 
+    # Aqui, vamos atualizar o registo para definir que está flagado.
     conn = sqlite3.connect("data.db")
     cursor = conn.cursor()
-    cursor.execute("UPDATE observations SET status = ? WHERE id = ?", ("errorReported", measurement_id))
+    # Atualize a coluna "flagged_observation" para "Yes"
+    cursor.execute("UPDATE observations SET flagged_observation = ? WHERE id = ?", ("Yes", measurement_id))
     conn.commit()
     conn.close()
 
     print(f"Erro reportado para a medição {measurement_id}: {error_details}")
+    return jsonify({"message": "Error flagged successfully!"})
 
-    return jsonify({"message": "Error reported successfully!"})
 
 # ✅ **Corrigindo a indentação da rota `/`**
 @app.route("/")

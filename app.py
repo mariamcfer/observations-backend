@@ -2,111 +2,104 @@ from flask import Flask, request, jsonify
 import json
 import sqlite3
 from flask_cors import CORS
-import os
 
 app = Flask(__name__)
 CORS(app)
 
-DATA_FILE = "backup_data.json"
-
-# ✅ Função para criar/recriar banco de dados
+# ✅ Criar banco de dados
 def init_db():
+    conn = sqlite3.connect("data.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS observations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            storeName TEXT,
+            product TEXT,
+            productType TEXT,
+            section TEXT,
+            spacePass TEXT,
+            ladderRequired TEXT,
+            size25 TEXT,
+            notLocatedUnits TEXT,
+            observations TEXT,
+            startTime TEXT,
+            endTime TEXT,
+            pickingTime INTEGER,
+            pickingFound INTEGER,
+            pickingNotFound INTEGER,
+            reoperatingTime INTEGER,
+            reoperatingManipulated INTEGER,
+            shopfloorTime INTEGER,
+            shopfloorManipulated INTEGER,
+            transitsTime INTEGER,
+            devicesFailuresTime INTEGER,
+            status TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+# ✅ Verificar se a tabela existe
+@app.route("/check_db", methods=["GET"])
+def check_db():
+    conn = sqlite3.connect("data.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='observations';")
+    table_exists = cursor.fetchone()
+    conn.close()
+    return jsonify({"status": "✅ Banco de dados funcionando!" if table_exists else "❌ ERRO: Tabela 'observations' não existe!"})
+
+# ✅ Salvar uma medição
+@app.route("/save", methods=["POST"])
+def save_data():
     try:
+        data = request.json
         conn = sqlite3.connect("data.db")
         cursor = conn.cursor()
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS observations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                storeName TEXT,
-                product TEXT,
-                productType TEXT,
-                section TEXT,
-                spacePass TEXT,
-                ladderRequired TEXT,
-                size25 TEXT,
-                notLocatedUnits TEXT,
-                observations TEXT,
-                startTime TEXT,
-                endTime TEXT,
-                pickingTime INTEGER,
-                pickingFound INTEGER,
-                pickingNotFound INTEGER,
-                reoperatingTime INTEGER,
-                reoperatingManipulated INTEGER,
-                shopfloorTime INTEGER,
-                shopfloorManipulated INTEGER,
-                transitsTime INTEGER,
-                devicesFailuresTime INTEGER,
-                status TEXT
-            )
-        """)
+            INSERT INTO observations (
+                storeName, product, productType, section, spacePass, ladderRequired,
+                size25, notLocatedUnits, observations, startTime, endTime,
+                pickingTime, pickingFound, pickingNotFound, reoperatingTime,
+                reoperatingManipulated, shopfloorTime, shopfloorManipulated,
+                transitsTime, devicesFailuresTime, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            data.get("storeName", "N/A"), data.get("product", "N/A"), data.get("productType", "N/A"),
+            data.get("section", "N/A"), data.get("spacePass", "N/A"), data.get("ladderRequired", "N/A"),
+            data.get("size25", "N/A"), data.get("notLocatedUnits", "N/A"), data.get("observations", "N/A"),
+            data.get("startTime", "N/A"), data.get("endTime", "N/A"), data.get("pickingTime", 0),
+            data.get("pickingFound", 0), data.get("pickingNotFound", 0), data.get("reoperatingTime", 0),
+            data.get("reoperatingManipulated", 0), data.get("shopfloorTime", 0), data.get("shopfloorManipulated", 0),
+            data.get("transitsTime", 0), data.get("devicesFailuresTime", 0), "synced"
+        ))
         conn.commit()
+        new_id = cursor.lastrowid
         conn.close()
-        print("✅ Banco de dados criado/verificado com sucesso!")
+        return jsonify({"message": "✅ Data saved successfully!", "id": new_id})
     except Exception as e:
-        print(f"❌ ERRO ao criar banco de dados: {e}")
+        return jsonify({"error": "Erro ao salvar no banco de dados", "details": str(e)}), 500
 
-# ✅ Salvar dados no backup JSON
-def save_to_file(data):
-    """ Salva os dados localmente num ficheiro JSON """
-    try:
-        if os.path.exists(DATA_FILE):
-            with open(DATA_FILE, "r", encoding="utf-8") as file:
-                existing_data = json.load(file)
-        else:
-            existing_data = []
+# ✅ Obter todas as medições
+@app.route("/measurements", methods=["GET"])
+def get_data():
+    conn = sqlite3.connect("data.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM observations")
+    rows = cursor.fetchall()
+    conn.close()
+    return jsonify([
+        {
+            "id": row[0], "storeName": row[1], "product": row[2], "productType": row[3], "section": row[4],
+            "spacePass": row[5], "ladderRequired": row[6], "size25": row[7], "notLocatedUnits": row[8],
+            "observations": row[9], "startTime": row[10], "endTime": row[11], "pickingTime": row[12],
+            "pickingFound": row[13], "pickingNotFound": row[14], "reoperatingTime": row[15],
+            "reoperatingManipulated": row[16], "shopfloorTime": row[17], "shopfloorManipulated": row[18],
+            "transitsTime": row[19], "devicesFailuresTime": row[20], "status": row[21]
+        } for row in rows
+    ])
 
-        existing_data.append(data)
-
-        with open(DATA_FILE, "w", encoding="utf-8") as file:
-            json.dump(existing_data, file, indent=4)
-    except Exception as e:
-        print("❌ Erro ao salvar no ficheiro:", e)
-
-# ✅ Restaurar dados do JSON para o SQLite sem duplicações
-def restore_from_backup():
-    """ Restaura os dados do JSON para o banco de dados SQLite """
-    if os.path.exists(DATA_FILE):
-        try:
-            with open(DATA_FILE, "r", encoding="utf-8") as file:
-                data = json.load(file)
-
-            conn = sqlite3.connect("data.db")
-            cursor = conn.cursor()
-
-            for entry in data:
-                cursor.execute("""
-                    SELECT COUNT(*) FROM observations WHERE storeName = ? AND product = ? AND startTime = ?
-                """, (entry.get("storeName", "N/A"), entry.get("product", "N/A"), entry.get("startTime", "N/A")))
-
-                exists = cursor.fetchone()[0]
-                
-                if exists == 0:  # Só adiciona se não existir
-                    cursor.execute("""
-                        INSERT INTO observations (
-                            storeName, product, productType, section, spacePass, ladderRequired,
-                            size25, notLocatedUnits, observations, startTime, endTime,
-                            pickingTime, pickingFound, pickingNotFound, reoperatingTime,
-                            reoperatingManipulated, shopfloorTime, shopfloorManipulated,
-                            transitsTime, devicesFailuresTime, status
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        entry.get("storeName", "N/A"), entry.get("product", "N/A"), entry.get("productType", "N/A"),
-                        entry.get("section", "N/A"), entry.get("spacePass", "N/A"), entry.get("ladderRequired", "N/A"),
-                        entry.get("size25", "N/A"), entry.get("notLocatedUnits", "N/A"), entry.get("observations", "N/A"),
-                        entry.get("startTime", "N/A"), entry.get("endTime", "N/A"), entry.get("pickingTime", 0),
-                        entry.get("pickingFound", 0), entry.get("pickingNotFound", 0), entry.get("reoperatingTime", 0),
-                        entry.get("reoperatingManipulated", 0), entry.get("shopfloorTime", 0), entry.get("shopfloorManipulated", 0),
-                        entry.get("transitsTime", 0), entry.get("devicesFailuresTime", 0), "synced"
-                    ))
-
-            conn.commit()
-            conn.close()
-            print("✅ Dados restaurados do backup sem duplicações!")
-        except Exception as e:
-            print(f"❌ Erro ao restaurar backup: {e}")
-
-# ✅ Obter total de unidades medidas
+# ✅ Obter o total de unidades medidas
 @app.route("/get_units_count", methods=["GET"])
 def get_units_count():
     store = request.args.get("store", "").strip()
@@ -133,22 +126,9 @@ def get_units_count():
 
     total_units = cursor.fetchone()[0] or 0
     conn.close()
+    return jsonify({"store": store, "product": product, "productType": productType, "section": section, "total_units": total_units})
 
-    return jsonify({
-        "store": store, 
-        "product": product, 
-        "productType": productType, 
-        "section": section, 
-        "total_units": total_units
-    })
-
-# ✅ Página inicial
-@app.route("/")
-def index():
-    return "🚀 Flask API is running! Try /check_db to verify 'data.db' status."
-
-# ✅ Iniciar servidor e restaurar backup
+# ✅ Iniciar o servidor corretamente
 if __name__ == "__main__":
     init_db()
-    restore_from_backup()  # 🔥 Restaurar dados do backup JSON ao iniciar
     app.run(debug=True, host="0.0.0.0", port=5000)

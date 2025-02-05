@@ -128,7 +128,11 @@ def get_units_count():
     conn.close()
     return jsonify({"store": store, "product": product, "productType": productType, "section": section, "total_units": total_units})
 
-# ✅ Iniciar o servidor corretamente
+import os
+
 if __name__ == "__main__":
     init_db()
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    port = int(os.environ.get("PORT", 10000))  # ✅ Render usa uma porta dinâmica
+    app.run(debug=True, host="0.0.0.0", port=port)
+
+

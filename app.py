@@ -11,13 +11,16 @@ def init_db():
     conn = sqlite3.connect("data.db")
     cursor = conn.cursor()
 
-    # Criar a tabela caso não exista
+    # 🚨 REMOVE A TABELA ANTIGA (Se ela existir) 🚨
+    cursor.execute("DROP TABLE IF EXISTS observations")
+
+    # 🚀 RECRIA A TABELA COM OS CAMPOS ATUALIZADOS 🚀
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS observations (
+        CREATE TABLE observations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             storeName TEXT,
-            product TEXT,
-            productType TEXT,
+            product TEXT,  -- Alterado de 'type' para 'product'
+            typeOfProduct TEXT,  -- Novo campo
             section TEXT,
             spacePass TEXT,
             ladderRequired TEXT,
@@ -36,26 +39,12 @@ def init_db():
             transitsTime INTEGER,
             devicesFailuresTime INTEGER,
             status TEXT,
-            flagged_observation TEXT
+            flagged_observation TEXT  -- Nova coluna para flag
         )
     """)
 
-    # 🔥 Adicionar novas colunas se elas não existirem
-    try:
-        cursor.execute("ALTER TABLE observations ADD COLUMN product TEXT")
-    except sqlite3.OperationalError:
-        print("⚠️ Coluna 'product' já existe, pulando...")
-
-    try:
-        cursor.execute("ALTER TABLE observations ADD COLUMN productType TEXT")
-    except sqlite3.OperationalError:
-        print("⚠️ Coluna 'productType' já existe, pulando...")
-
     conn.commit()
     conn.close()
-    print("✅ Banco de dados atualizado com sucesso!")
-
-
 
 # Endpoint para salvar medições
 @app.route("/save", methods=["POST"])
@@ -161,7 +150,7 @@ def report_error():
 def index():
     return "Flask is running! Access /measurements for data or use the app interface."
 
-# ✅ **Inicia o Flask corretamente**
 if __name__ == "__main__":
-    init_db()
+    init_db()  # 🚀 Recria a base de dados automaticamente no startup 🚀
     app.run(debug=True, host="0.0.0.0", port=5000)
+

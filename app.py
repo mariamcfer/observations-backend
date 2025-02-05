@@ -148,19 +148,29 @@ def get_units_count():
     cursor = conn.cursor()
 
     if product in ["Shoes", "Perfumeria"]:
+        # 🔹 Agora incluímos 'section' na query
         cursor.execute("""
             SELECT SUM(pickingFound) FROM observations 
-            WHERE storeName = ? AND product = ?
-        """, (store, product))
+            WHERE storeName = ? AND product = ? 
+            AND (section = ? OR section IS NULL OR section = '') 
+        """, (store, product, section))
     else:
+        # 🔹 Para 'Clothes', permitimos valores vazios de 'section' e 'productType'
         cursor.execute("""
             SELECT SUM(pickingFound) FROM observations 
-            WHERE storeName = ? AND product = ? AND productType = ? AND section = ?
+            WHERE storeName = ? AND product = ? 
+            AND (productType = ? OR productType IS NULL OR productType = '') 
+            AND (section = ? OR section IS NULL OR section = '') 
         """, (store, product, productType, section))
 
     total_units = cursor.fetchone()[0] or 0
     conn.close()
 
-    return jsonify({"store": store, "product": product, "productType": productType, "section": section, "total_units": total_units})
-
+    return jsonify({
+        "store": store, 
+        "product": product, 
+        "productType": productType, 
+        "section": section, 
+        "total_units": total_units
+    })
 

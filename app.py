@@ -137,34 +137,30 @@ if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
 
     # ✅ Endpoint para obter o total de unidades medidas (pickingFound) para uma combinação específica
-@app.route("/get_count", methods=["GET"])
-def get_count():
-    try:
-        store = request.args.get("storeName")
-        product = request.args.get("product")
-        productType = request.args.get("productType", "N/A")
-        section = request.args.get("section", "N/A")
+@app.route("/get_units_count", methods=["GET"])
+def get_units_count():
+    store = request.args.get("store", "").strip()
+    product = request.args.get("product", "").strip()
+    productType = request.args.get("productType", "").strip()
+    section = request.args.get("section", "").strip()
 
-        conn = sqlite3.connect("data.db")
-        cursor = conn.cursor()
+    conn = sqlite3.connect("data.db")
+    cursor = conn.cursor()
 
-        # 🛑 Se for Shoes ou Perfumery, ignoramos a secção
-        if product in ["Calzado", "Perfumeria"]:
-            cursor.execute("""
-                SELECT SUM(pickingFound) FROM observations 
-                WHERE storeName = ? AND product = ?
-            """, (store, product))
-        else:
-            cursor.execute("""
-                SELECT SUM(pickingFound) FROM observations 
-                WHERE storeName = ? AND product = ? AND productType = ? AND section = ?
-            """, (store, product, productType, section))
+    if product in ["Shoes", "Perfumeria"]:
+        cursor.execute("""
+            SELECT SUM(pickingFound) FROM observations 
+            WHERE storeName = ? AND product = ?
+        """, (store, product))
+    else:
+        cursor.execute("""
+            SELECT SUM(pickingFound) FROM observations 
+            WHERE storeName = ? AND product = ? AND productType = ? AND section = ?
+        """, (store, product, productType, section))
 
-        total_units = cursor.fetchone()[0] or 0  # Se for None, retorna 0
-        conn.close()
+    total_units = cursor.fetchone()[0] or 0
+    conn.close()
 
-        return jsonify({"store": store, "product": product, "productType": productType, "section": section, "total_units": total_units})
+    return jsonify({"store": store, "product": product, "productType": productType, "section": section, "total_units": total_units})
 
-    except Exception as e:
-        return jsonify({"error": "Erro ao obter contagem", "details": str(e)}), 500
 

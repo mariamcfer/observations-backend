@@ -7,11 +7,16 @@ app = Flask(__name__)
 CORS(app)  # Permite que o frontend acesse o backend sem bloqueios de CORS
 
 
-# 🔹 Função para inicializar o banco de dados (sem apagar dados)
+# 🔥 Função para FORÇAR a recriação do banco de dados
 def init_db():
     try:
         conn = sqlite3.connect("data.db")
         cursor = conn.cursor()
+
+        # 🚨 Apagar a tabela antiga e criar uma nova
+        print("🚨 Apagando tabela antiga e criando uma nova...")
+        cursor.execute("DROP TABLE IF EXISTS observations")
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS observations (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,20 +46,18 @@ def init_db():
         """)
         conn.commit()
         conn.close()
-        print("✅ Banco de dados inicializado com sucesso!")
+        print("✅ Banco de dados RECRIADO com sucesso!")
     except Exception as e:
         print("❌ Erro ao inicializar o banco de dados:", e)
 
-
-# 🔥 **Função para FORÇAR a recriação do banco de dados (cuidado!)**
-def reset_db():
+def force_reset_db():
     try:
         conn = sqlite3.connect("data.db")
         cursor = conn.cursor()
-        
-        # 🚨 Apagar completamente a tabela antiga e criar do zero
+
+        print("🚨 Apagando tabela antiga e criando uma nova...")
         cursor.execute("DROP TABLE IF EXISTS observations")
-        
+
         cursor.execute("""
             CREATE TABLE observations (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -86,7 +89,7 @@ def reset_db():
         conn.close()
         print("✅ Banco de dados RECRIADO com sucesso!")
     except Exception as e:
-        print("❌ Erro ao recriar o banco de dados:", e)
+        print("❌ ERRO ao recriar banco de dados:", e)
 
 
 # ✅ **Salvar medições**
@@ -96,7 +99,7 @@ def save_data():
     if not data:
         return jsonify({"error": "Nenhum dado recebido"}), 400
 
-    print("Dados recebidos:", data)
+    print("📥 Dados recebidos:", data)
 
     conn = sqlite3.connect("data.db")
     cursor = conn.cursor()
@@ -121,7 +124,7 @@ def save_data():
     new_id = cursor.lastrowid
     conn.close()
 
-    return jsonify({"message": "Data saved successfully!", "id": new_id})
+    return jsonify({"message": "✅ Data saved successfully!", "id": new_id})
 
 
 # ✅ **Recuperar todas as medições**
@@ -150,32 +153,13 @@ def get_data():
         return jsonify({"error": "Database error", "details": str(e)}), 500
 
 
-# ✅ **Reportar erro em uma medição**
-@app.route("/report_error", methods=["POST"])
-def report_error():
-    data = request.json
-    if not data:
-        return jsonify({"error": "Nenhum dado recebido"}), 400
-
-    measurement_id = data.get("id")
-
-    conn = sqlite3.connect("data.db")
-    cursor = conn.cursor()
-    cursor.execute("UPDATE observations SET flagged_observation = ? WHERE id = ?", ("Yes", measurement_id))
-    conn.commit()
-    conn.close()
-
-    return jsonify({"message": "Error flagged successfully!"})
-
-
-# ✅ **Rota inicial para testar se a API está rodando**
+# ✅ **Testar se a API está rodando**
 @app.route("/")
 def index():
-    return "Flask is running! Access /measurements for data or use the app interface."
+    return "🚀 Flask is running! Test /measurements for data."
 
 
-# ✅ **Rodando o servidor e forçando a recriação do banco**
+# ✅ **Rodando o servidor**
 if __name__ == "__main__":
-    init_db()  # Criar banco se não existir
-    reset_db()  # 🔥 Apagar e recriar banco (ATENÇÃO: Isso deleta todos os dados!)
+    force_reset_db()  # 🔥 GARANTE QUE O BANCO É CRIADO NO RENDER
     app.run(debug=True, host="0.0.0.0", port=5000)

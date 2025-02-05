@@ -9,46 +9,39 @@ CORS(app)  # Permite que o front end acesse o back end sem bloqueios de CORS
 # Função para inicializar (ou recriar) o banco de dados
 def init_db():
     try:
-        conn = sqlite3.connect("data.db")
+        print("🔄 Tentando criar/reiniciar o banco de dados...")
+        conn = sqlite3.connect("new_data.db")  # 🔥 ALTERADO para garantir um novo banco!
         cursor = conn.cursor()
-        
-        # 🔥 REMOVE a tabela antiga se existir
-        cursor.execute("DROP TABLE IF EXISTS observations")
-        
-        # 🔥 CRIA a tabela novamente com os campos atualizados
-        cursor.execute("""
-            CREATE TABLE observations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                storeName TEXT,
-                product TEXT,
-                typeOfProduct TEXT,
-                section TEXT,
-                spacePass TEXT,
-                ladderRequired TEXT,
-                size25 TEXT,
-                notLocatedUnits TEXT,
-                observations TEXT,
-                startTime TEXT,
-                endTime TEXT,
-                pickingTime INTEGER,
-                pickingFound INTEGER,
-                pickingNotFound INTEGER,
-                reoperatingTime INTEGER,
-                reoperatingManipulated INTEGER,
-                shopfloorTime INTEGER,
-                shopfloorManipulated INTEGER,
-                transitsTime INTEGER,
-                devicesFailuresTime INTEGER,
-                status TEXT,
-                flagged_observation TEXT
-            )
-        """)
-        
+        cursor.execute("""CREATE TABLE IF NOT EXISTS observations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            storeName TEXT,
+            product TEXT,  
+            typeOfProduct TEXT,  
+            section TEXT,
+            spacePass TEXT,
+            ladderRequired TEXT,
+            size25 TEXT,
+            notLocatedUnits TEXT,
+            observations TEXT,
+            startTime TEXT,
+            endTime TEXT,
+            pickingTime INTEGER,
+            pickingFound INTEGER,
+            pickingNotFound INTEGER,
+            reoperatingTime INTEGER,
+            reoperatingManipulated INTEGER,
+            shopfloorTime INTEGER,
+            shopfloorManipulated INTEGER,
+            transitsTime INTEGER,
+            devicesFailuresTime INTEGER,
+            status TEXT,
+            flagged_observation TEXT
+        )""")
         conn.commit()
         conn.close()
-        print("✅ Banco de dados foi recriado com sucesso!")
+        print("✅ Banco de dados criado com sucesso!")
     except Exception as e:
-        print("❌ Erro ao recriar o banco de dados:", e)
+        print("❌ Erro ao criar banco de dados:", e)
 
 
 
@@ -84,7 +77,7 @@ def save_data():
 
     status = "synced"
 
-    conn = sqlite3.connect("data.db")
+    conn = sqlite3.connect("new_data.db")
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO observations (
@@ -110,7 +103,7 @@ def save_data():
 @app.route("/measurements", methods=["GET"])
 def get_data():
     try:
-        conn = sqlite3.connect("data.db")
+        conn = sqlite3.connect("new_data.db")
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM observations")
         rows = cursor.fetchall()
@@ -145,7 +138,7 @@ def report_error():
     error_details = data.get("error", "Erro reportado sem detalhes")
 
     # Aqui, vamos atualizar o registo para definir que está flagado.
-    conn = sqlite3.connect("data.db")
+    conn = sqlite3.connect("new_data.db")
     cursor = conn.cursor()
     # Atualize a coluna "flagged_observation" para "Yes"
     cursor.execute("UPDATE observations SET flagged_observation = ? WHERE id = ?", ("Yes", measurement_id))
@@ -162,7 +155,10 @@ def index():
     return "Flask is running! Access /measurements for data or use the app interface."
 
 if __name__ == "__main__":
-    init_db()  # 🔥 Isto garante que a tabela será criada!
+    print("🔄 Inicializando o banco de dados...")
+    init_db()
+    print("✅ Banco de dados pronto!")
     app.run(debug=True, host="0.0.0.0", port=5000)
+
 
 

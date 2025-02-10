@@ -19,6 +19,7 @@ def init_db():
             section TEXT,
             spacePass TEXT,
             ladderRequired TEXT,
+            receivingRequests TEXT,  -- 🔹 Nova coluna para armazenar "Yes" ou "No"
             size25 TEXT,
             notLocatedUnits TEXT,
             observations TEXT,
@@ -36,8 +37,17 @@ def init_db():
             status TEXT
         )
     """)
-    conn.commit()
+    
+    # 🔹 Verifica se a coluna já existe; se não, adiciona
+    cursor.execute("PRAGMA table_info(observations);")
+    columns = [column[1] for column in cursor.fetchall()]
+    
+    if "receivingRequests" not in columns:
+        cursor.execute("ALTER TABLE observations ADD COLUMN receivingRequests TEXT DEFAULT 'N/A'")
+        conn.commit()
+
     conn.close()
+
 
 # ✅ Verificar se a tabela existe
 @app.route("/check_db", methods=["GET"])
@@ -58,7 +68,7 @@ def save_data():
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO observations (
-                storeName, product, productType, section, spacePass, ladderRequired,
+                storeName, product, productType, section, spacePass, ladderRequired, receivingRequests,
                 size25, notLocatedUnits, observations, startTime, endTime,
                 pickingTime, pickingFound, pickingNotFound, reoperatingTime,
                 reoperatingManipulated, shopfloorTime, shopfloorManipulated,
@@ -67,6 +77,7 @@ def save_data():
         """, (
             data.get("storeName", "N/A"), data.get("product", "N/A"), data.get("productType", "N/A"),
             data.get("section", "N/A"), data.get("spacePass", "N/A"), data.get("ladderRequired", "N/A"),
+            data.get("receivingRequests", "N/A"),  # ✅ Agora será salvo no banco de dados
             data.get("size25", "N/A"), data.get("notLocatedUnits", "N/A"), data.get("observations", "N/A"),
             data.get("startTime", "N/A"), data.get("endTime", "N/A"), data.get("pickingTime", 0),
             data.get("pickingFound", 0), data.get("pickingNotFound", 0), data.get("reoperatingTime", 0),
@@ -80,6 +91,7 @@ def save_data():
     except Exception as e:
         return jsonify({"error": "Erro ao salvar no banco de dados", "details": str(e)}), 500
 
+
 # ✅ Obter todas as medições
 @app.route("/measurements", methods=["GET"])
 def get_data():
@@ -88,16 +100,35 @@ def get_data():
     cursor.execute("SELECT * FROM observations")
     rows = cursor.fetchall()
     conn.close()
+
     return jsonify([
         {
-            "id": row[0], "storeName": row[1], "product": row[2], "productType": row[3], "section": row[4],
-            "spacePass": row[5], "ladderRequired": row[6], "size25": row[7], "notLocatedUnits": row[8],
-            "observations": row[9], "startTime": row[10], "endTime": row[11], "pickingTime": row[12],
-            "pickingFound": row[13], "pickingNotFound": row[14], "reoperatingTime": row[15],
-            "reoperatingManipulated": row[16], "shopfloorTime": row[17], "shopfloorManipulated": row[18],
-            "transitsTime": row[19], "devicesFailuresTime": row[20], "status": row[21]
+            "id": row[0], 
+            "storeName": row[1], 
+            "product": row[2], 
+            "productType": row[3], 
+            "section": row[4], 
+            "spacePass": row[5], 
+            "ladderRequired": row[6], 
+            "receivingRequests": row[7],  # 🆕 Campo na posição correta
+            "size25": row[8], 
+            "notLocatedUnits": row[9], 
+            "observations": row[10], 
+            "startTime": row[11], 
+            "endTime": row[12], 
+            "pickingTime": row[13], 
+            "pickingFound": row[14], 
+            "pickingNotFound": row[15], 
+            "reoperatingTime": row[16], 
+            "reoperatingManipulated": row[17], 
+            "shopfloorTime": row[18], 
+            "shopfloorManipulated": row[19], 
+            "transitsTime": row[20], 
+            "devicesFailuresTime": row[21], 
+            "status": row[22]
         } for row in rows
     ])
+
 
 # ✅ Obter o total de unidades medidas
 @app.route("/get_units_count", methods=["GET"])

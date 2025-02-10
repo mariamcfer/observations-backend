@@ -85,3 +85,43 @@ def check_db():
 if __name__ == "__main__":
     init_db()
     app.run(debug=True)
+
+    import sqlite3
+
+# Conectar ao banco no servidor do Render
+conn = sqlite3.connect("observations.db", check_same_thread=False)
+cursor = conn.cursor()
+
+# Criar a tabela se não existir
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS observations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    storeName TEXT NOT NULL,
+    product TEXT NOT NULL,
+    productType TEXT NOT NULL,
+    section TEXT NOT NULL,
+    spacePass TEXT NOT NULL,
+    ladderRequired TEXT NOT NULL,
+    receivingRequests TEXT NOT NULL,
+    size25 INTEGER NOT NULL,
+    notLocatedUnits INTEGER NOT NULL,
+    observations TEXT,
+    startTime TEXT NOT NULL,
+    endTime TEXT NOT NULL,
+    pickingTime INTEGER NOT NULL,
+    pickingFound INTEGER NOT NULL,
+    pickingNotFound INTEGER NOT NULL,
+    reoperatingTime INTEGER NOT NULL,
+    reoperatingManipulated INTEGER NOT NULL,
+    shopfloorTime INTEGER NOT NULL,
+    shopfloorManipulated INTEGER NOT NULL,
+    transitsTime INTEGER NOT NULL,
+    devicesFailuresTime INTEGER NOT NULL,
+    status TEXT NOT NULL
+);
+""")
+
+conn.commit()
+conn.close()
+
+print("✅ Banco de dados configurado corretamente!")

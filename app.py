@@ -84,6 +84,27 @@ def save_measurement():
 
     except Exception as e:
         return jsonify({"error": "Erro ao salvar no banco de dados", "details": str(e)}), 500
+    
+@app.route("/observations", methods=["GET"])
+def get_observations():
+    try:
+        with sqlite3.connect("observations.db") as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM observations")
+            rows = cursor.fetchall()
+
+            # 🔹 Obter os nomes das colunas
+            column_names = [description[0] for description in cursor.description]
+
+            # 🔹 Converter os resultados em uma lista de dicionários
+            observations = [dict(zip(column_names, row)) for row in rows]
+
+        return jsonify(observations), 200  # 🔹 Certifique-se de que está corretamente indentado
+
+    except Exception as e:
+        return jsonify({"error": "Erro ao buscar observações", "details": str(e)}), 500
+
+
 
 # 🔹 Garante que todas as respostas tenham CORS ativado
 @app.after_request
@@ -93,6 +114,10 @@ def add_cors_headers(response):
     response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
     return response
 
+import os
+
 if __name__ == "__main__":
     init_db()
-    app.run(host="0.0.0.0", port=10000, debug=True)
+    print("🚀 Rotas registradas no Flask:")
+    print(app.url_map)  # 🔥 Isso lista todas as rotas disponíveis no Flask
+    app.run(host="0.0.0.0", port=5000, debug=True)

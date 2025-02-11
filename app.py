@@ -7,10 +7,10 @@ import os
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# 🔹 Caminho correto para o banco de dados no Render
+# 🔹 Caminho do banco de dados no Render
 DB_PATH = "/tmp/observations.db"
 
-# 🔹 Inicializar o banco de dados corretamente
+# 🔹 Função para inicializar o banco de dados
 def init_db():
     print("🔄 Inicializando o banco de dados...")
     with sqlite3.connect(DB_PATH) as conn:
@@ -26,7 +26,7 @@ def init_db():
             )
         ''')
         conn.commit()
-    print("✅ Banco de dados configurado corretamente!")
+    print("✅ Banco de dados inicializado corretamente!")
 
 # 🔥 Chama a inicialização do banco de dados ao iniciar o app
 init_db()
@@ -37,25 +37,24 @@ def home():
 
 @app.route("/save", methods=["POST"])
 def save_measurement():
-    data = request.get_json()
-
-    # 🔥 Lista de campos obrigatórios
-    required_fields = ["store", "process", "start_time", "end_time", "value"]
-    for field in required_fields:
-        if field not in data:
-            return jsonify({"error": f"Campo obrigatório '{field}' está ausente!"}), 400
-
-    # 🔹 Verificar se os valores dentro de "value" também estão presentes
-    required_value_fields = ["spacePass", "ladderRequired", "receivingRequests", "detailedSearch"]
-    for field in required_value_fields:
-        if field not in data["value"] or not data["value"][field]:
-            return jsonify({"error": f"Campo obrigatório '{field}' está ausente ou vazio!"}), 400
-
     try:
-        start_time = str(data["start_time"]) if data["start_time"] else "N/A"
-        end_time = str(data["end_time"]) if data["end_time"] else "N/A"
+        data = request.get_json()
+        print(f"🔹 Recebendo dados: {json.dumps(data, indent=2)}")  # Log para debug
 
-        with sqlite3.connect("observations.db") as conn:
+        # 🔹 Verifica se os campos obrigatórios estão presentes
+        required_fields = ["store", "process", "start_time", "end_time", "value"]
+        for field in required_fields:
+            if field not in data:
+                return jsonify({"error": f"Campo obrigatório '{field}' está ausente!"}), 400
+
+        # 🔹 Verificar campos obrigatórios dentro de `value`
+        required_value_fields = ["spacePass", "ladderRequired", "receivingRequests", "detailedSearch"]
+        for field in required_value_fields:
+            if field not in data["value"] or data["value"][field] == "":
+                return jsonify({"error": f"Campo obrigatório '{field}' está ausente ou vazio!"}), 400
+
+        # 🔹 Salvar os dados no banco de dados
+        with sqlite3.connect(DB_PATH) as conn:
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO measurements (store, process, start_time, end_time, value)
@@ -63,18 +62,19 @@ def save_measurement():
             ''', (
                 data["store"],
                 int(data["process"]),
-                start_time,
-                end_time,
-                json.dumps(data["value"])  # 🔥 Inclui todas as respostas no JSON
+                data["start_time"],
+                data["end_time"],
+                json.dumps(data["value"])  # 🔥 Salva JSON como string
             ))
             conn.commit()
             new_id = cursor.lastrowid
 
+        print(f"✅ Medição salva no banco com ID {new_id}")
         return jsonify({"message": "Success", "id": new_id}), 201
 
     except Exception as e:
+        print(f"❌ Erro ao salvar medição: {str(e)}")
         return jsonify({"error": "Erro ao salvar no banco de dados", "details": str(e)}), 500
-
 
 @app.route("/observations", methods=["GET"])
 def get_observations():
@@ -96,7 +96,6 @@ def get_observations():
     except Exception as e:
         return jsonify({"error": "Erro ao buscar observações", "details": str(e)}), 500
 
-
 @app.route("/get_units_count", methods=["GET"])
 def get_units_count():
     store = request.args.get("store", "")
@@ -110,14 +109,14 @@ def get_units_count():
             
             if product in ["Shoes", "Perfumery"]:
                 query = '''
-                    SELECT SUM(CAST(json_extract(value, '$.picking_found') AS INTEGER))
+                    SELECT SUM(CAST(json_extract(value, '$.pickingFound') AS INTEGER))
                     FROM measurements
                     WHERE store = ? AND json_extract(value, '$.product') = ?
                 '''
                 cursor.execute(query, (store, product))
             else:
                 query = '''
-                    SELECT SUM(CAST(json_extract(value, '$.picking_found') AS INTEGER))
+                    SELECT SUM(CAST(json_extract(value, '$.pickingFound') AS INTEGER))
                     FROM measurements
                     WHERE store = ? AND json_extract(value, '$.product') = ? 
                     AND json_extract(value, '$.productType') = ? 
@@ -138,6 +137,21 @@ def add_cors_headers(response):
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
     return response
+
+@app.route("/check_db", methods=["GET"])
+def check_db():
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='measurements'")
+            result = cursor.fetchone()
+            if result:
+                return jsonify({"message": "✅ A tabela 'measurements' EXISTE no banco de dados!"}), 200
+            else:
+                return jsonify({"error": "❌ A tabela 'measurements' NÃO EXISTE!"}), 500
+    except Exception as e:
+        return jsonify({"error": "Erro ao verificar banco de dados", "details": str(e)}), 500
+
 
 if __name__ == "__main__":
     PORT = int(os.environ.get("PORT", 5000))

@@ -105,6 +105,40 @@ def get_observations():
         return jsonify({"error": "Erro ao buscar observações", "details": str(e)}), 500
 
 
+@app.route("/get_units_count", methods=["GET"])
+def get_units_count():
+    store = request.args.get("store", "").strip()
+    product = request.args.get("product", "").strip()
+    product_type = request.args.get("productType", "").strip()
+    section = request.args.get("section", "").strip()
+
+    # 🔥 Para "Shoes" e "Perfumery", sempre usar productType = "N/A"
+    if product in ["Shoes", "Perfumery"]:
+        product_type = "N/A"
+
+    try:
+        with sqlite3.connect("observations.db") as conn:
+            cursor = conn.cursor()
+            
+            # 🔹 Construir a consulta SQL dinamicamente
+            query = "SELECT SUM(pickingFound) FROM observations WHERE storeName = ? AND product = ? AND section = ?"
+            params = [store, product, section]
+
+            # 🔹 Se NÃO for "Shoes" ou "Perfumery", considerar o productType na query
+            if product not in ["Shoes", "Perfumery"]:
+                query += " AND productType = ?"
+                params.append(product_type)
+
+            cursor.execute(query, params)
+            result = cursor.fetchone()[0]
+            total_units = result if result is not None else 0  # 🔹 Garante que retorna 0 se não houver resultados
+
+        return jsonify({"units_measured": total_units}), 200
+
+    except Exception as e:
+        return jsonify({"error": "Erro ao buscar unidades", "details": str(e)}), 500
+
+
 
 # 🔹 Garante que todas as respostas tenham CORS ativado
 @app.after_request
@@ -116,8 +150,6 @@ def add_cors_headers(response):
 
 import os
 
-if __name__ == "__main__":
-    init_db()
-    print("🚀 Rotas registradas no Flask:")
-    print(app.url_map)  # 🔥 Isso lista todas as rotas disponíveis no Flask
-    app.run(host="0.0.0.0", port=5000, debug=True)
+PORT = int(os.environ.get("PORT", 5000))  # Render usa a porta 5000 automaticamente
+
+app.run(host="0.0.0.0", port=PORT, debug=True)

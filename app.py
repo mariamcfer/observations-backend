@@ -8,7 +8,7 @@ app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 # 🔹 Caminho do banco de dados no Render
-DB_PATH = "/tmp/observations.db"
+DB_PATH = os.path.join(os.path.dirname(__file__), "observations.db")
 
 # 🔹 Função para inicializar o banco de dados
 def init_db():
@@ -151,6 +151,7 @@ def check_db():
                 return jsonify({"error": "❌ A tabela 'measurements' NÃO EXISTE!"}), 500
     except Exception as e:
         return jsonify({"error": "Erro ao verificar banco de dados", "details": str(e)}), 500
+
 
 
 if __name__ == "__main__":

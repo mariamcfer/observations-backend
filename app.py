@@ -107,36 +107,38 @@ def get_observations():
 
 @app.route("/get_units_count", methods=["GET"])
 def get_units_count():
-    store = request.args.get("store", "").strip()
-    product = request.args.get("product", "").strip()
-    product_type = request.args.get("productType", "").strip()
-    section = request.args.get("section", "").strip()
-
-    # 🔥 Para "Shoes" e "Perfumery", sempre usar productType = "N/A"
-    if product in ["Shoes", "Perfumery"]:
-        product_type = "N/A"
+    store = request.args.get("store", "")
+    product = request.args.get("product", "")
+    product_type = request.args.get("productType", "")
+    section = request.args.get("section", "")
 
     try:
         with sqlite3.connect("observations.db") as conn:
             cursor = conn.cursor()
-            
-            # 🔹 Construir a consulta SQL dinamicamente
-            query = "SELECT SUM(pickingFound) FROM observations WHERE storeName = ? AND product = ? AND section = ?"
-            params = [store, product, section]
 
-            # 🔹 Se NÃO for "Shoes" ou "Perfumery", considerar o productType na query
-            if product not in ["Shoes", "Perfumery"]:
-                query += " AND productType = ?"
-                params.append(product_type)
+            if product in ["Shoes", "Perfumery"]:
+                # 🔥 Para Shoes e Perfumery, ignora "section" mas mantém a store e produto
+                query = """
+                    SELECT SUM(pickingFound) FROM observations 
+                    WHERE storeName = ? AND product = ?
+                """
+                cursor.execute(query, (store, product))
+            else:
+                # 🔹 Para os outros produtos, considerar "section"
+                query = """
+                    SELECT SUM(pickingFound) FROM observations 
+                    WHERE storeName = ? AND product = ? AND productType = ? AND section = ?
+                """
+                cursor.execute(query, (store, product, product_type, section))
 
-            cursor.execute(query, params)
-            result = cursor.fetchone()[0]
-            total_units = result if result is not None else 0  # 🔹 Garante que retorna 0 se não houver resultados
+            result = cursor.fetchone()
+            total_units = result[0] if result and result[0] else 0
 
         return jsonify({"units_measured": total_units}), 200
 
     except Exception as e:
-        return jsonify({"error": "Erro ao buscar unidades", "details": str(e)}), 500
+        return jsonify({"error": "Erro ao obter unidades medidas", "details": str(e)}), 500
+
 
 
 

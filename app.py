@@ -43,9 +43,6 @@ def init_db():
 def save_measurement():
     data = request.get_json()
 
-    if data.get("status") != "synced":
-        return jsonify({"error": "Apenas medições sincronizadas podem ser enviadas para o backend."}), 400
-
     try:
         with sqlite3.connect("observations.db") as conn:
             cursor = conn.cursor()

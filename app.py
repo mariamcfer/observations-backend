@@ -39,16 +39,23 @@ def home():
 def save_measurement():
     data = request.get_json()
 
+    # 🔥 Lista de campos obrigatórios
     required_fields = ["store", "process", "start_time", "end_time", "value"]
     for field in required_fields:
         if field not in data:
             return jsonify({"error": f"Campo obrigatório '{field}' está ausente!"}), 400
 
+    # 🔹 Verificar se os valores dentro de "value" também estão presentes
+    required_value_fields = ["spacePass", "ladderRequired", "receivingRequests", "detailedSearch"]
+    for field in required_value_fields:
+        if field not in data["value"] or not data["value"][field]:
+            return jsonify({"error": f"Campo obrigatório '{field}' está ausente ou vazio!"}), 400
+
     try:
         start_time = str(data["start_time"]) if data["start_time"] else "N/A"
         end_time = str(data["end_time"]) if data["end_time"] else "N/A"
 
-        with sqlite3.connect(DB_PATH) as conn:
+        with sqlite3.connect("observations.db") as conn:
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO measurements (store, process, start_time, end_time, value)
@@ -58,7 +65,7 @@ def save_measurement():
                 int(data["process"]),
                 start_time,
                 end_time,
-                json.dumps(data["value"])
+                json.dumps(data["value"])  # 🔥 Inclui todas as respostas no JSON
             ))
             conn.commit()
             new_id = cursor.lastrowid
@@ -67,6 +74,7 @@ def save_measurement():
 
     except Exception as e:
         return jsonify({"error": "Erro ao salvar no banco de dados", "details": str(e)}), 500
+
 
 @app.route("/observations", methods=["GET"])
 def get_observations():
@@ -81,11 +89,13 @@ def get_observations():
 
             for obs in observations:
                 obs["value"] = json.loads(obs["value"])
+                obs["value"]["detailedSearch"] = obs["value"].get("detailedSearch", "N/A")  # 🔥 Garante exibição correta
 
         return jsonify(observations), 200  
 
     except Exception as e:
         return jsonify({"error": "Erro ao buscar observações", "details": str(e)}), 500
+
 
 @app.route("/get_units_count", methods=["GET"])
 def get_units_count():

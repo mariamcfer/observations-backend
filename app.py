@@ -37,44 +37,44 @@ def home():
 
 @app.route("/save", methods=["POST"])
 def save_measurement():
+    data = request.get_json()
+
+    required_fields = ["store", "process", "start_time", "end_time", "value"]
+    for field in required_fields:
+        if field not in data:
+            return jsonify({"error": f"Campo obrigatório '{field}' está ausente!"}), 400
+
+    required_value_fields = ["spacePass", "ladderRequired", "receivingRequests", "detailedSearch"]
+    for field in required_value_fields:
+        if field not in data["value"] or not data["value"][field]:
+            return jsonify({"error": f"Campo obrigatório '{field}' está ausente ou vazio!"}), 400
+
     try:
-        data = request.get_json()
-        print(f"🔹 Recebendo dados: {json.dumps(data, indent=2)}")  # Log para debug
-
-        # 🔹 Verifica se os campos obrigatórios estão presentes
-        required_fields = ["store", "process", "start_time", "end_time", "value"]
-        for field in required_fields:
-            if field not in data:
-                return jsonify({"error": f"Campo obrigatório '{field}' está ausente!"}), 400
-
-        # 🔹 Verificar campos obrigatórios dentro de `value`
-        required_value_fields = ["spacePass", "ladderRequired", "receivingRequests", "detailedSearch"]
-        for field in required_value_fields:
-            if field not in data["value"] or data["value"][field] == "":
-                return jsonify({"error": f"Campo obrigatório '{field}' está ausente ou vazio!"}), 400
-
-        # 🔹 Salvar os dados no banco de dados
         with sqlite3.connect(DB_PATH) as conn:
             cursor = conn.cursor()
+
+            # 🔹 Verifica se a medição já existe antes de inserir
+            cursor.execute('''
+                SELECT COUNT(*) FROM measurements 
+                WHERE store = ? AND start_time = ? AND value = ?
+            ''', (data["store"], data["start_time"], json.dumps(data["value"])))
+
+            if cursor.fetchone()[0] > 0:
+                return jsonify({"message": "Medição já registrada, ignorando duplicação"}), 200
+
             cursor.execute('''
                 INSERT INTO measurements (store, process, start_time, end_time, value)
                 VALUES (?, ?, ?, ?, ?)
-            ''', (
-                data["store"],
-                int(data["process"]),
-                data["start_time"],
-                data["end_time"],
-                json.dumps(data["value"])  # 🔥 Salva JSON como string
-            ))
+            ''', (data["store"], int(data["process"]), data["start_time"], data["end_time"], json.dumps(data["value"])))
+
             conn.commit()
             new_id = cursor.lastrowid
 
-        print(f"✅ Medição salva no banco com ID {new_id}")
         return jsonify({"message": "Success", "id": new_id}), 201
 
     except Exception as e:
-        print(f"❌ Erro ao salvar medição: {str(e)}")
         return jsonify({"error": "Erro ao salvar no banco de dados", "details": str(e)}), 500
+
 
 @app.route("/observations", methods=["GET"])
 def get_observations():
